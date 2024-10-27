@@ -105,7 +105,6 @@ def train(tokenizer: Tokenizer, model: Transformer):
                 # Log training metrics (use unscaled loss for logging)
                 train_loss += loss.item() * args.gradient_accumulation_steps
                 curr_step = (step + 1) // args.gradient_accumulation_steps
-                print(curr_step)
                 writer.add_scalar(
                     "Loss/train_step",
                     loss.item() * args.gradient_accumulation_steps,
