@@ -17,6 +17,10 @@ class GutenbergPoetryDataset(Dataset):
     def __init__(self, seq_len: int, tokenizer: Tokenizer):
         with open("gutenberg_poetry_corpus.ndjson", "r") as file:
             self.data = [json.loads(line.strip())["s"] for line in file]
+
+        # TODO: Split the text according to the id too.
+        # One data point should not contain text from multiple ids.
+
         self.data = tokenizer.encode("".join(self.data))
         self.labels = self.data[1:] + [0]
         # Split data into sequences of length seq_len
@@ -151,9 +155,9 @@ def parse_args():
 
     # Training Arguments
     parser.add_argument("--lr", type=float, default=0.002, help="Learning rate")
-    parser.add_argument("--warmup-steps", type=int, default=10, help="Warmup steps")
-    parser.add_argument("--batch-size", type=int, default=8, help="Batch size")
-    parser.add_argument("--epochs", type=int, default=1, help="Number of epochs")
+    parser.add_argument("--warmup-steps", type=int, default=100, help="Warmup steps")
+    parser.add_argument("--batch-size", type=int, default=64, help="Batch size")
+    parser.add_argument("--epochs", type=int, default=10, help="Number of epochs")
     return parser.parse_args()
 
 

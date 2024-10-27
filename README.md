@@ -4,7 +4,12 @@ This repository contains a collection of various Language Modeling model archite
 
 ## Installation
 
-Unzip the corpus file:
+1. Install PyTorch
+2. Install dependencies
+```bash
+pip install -r requirements.txt
+```
+3. Unzip the corpus file
 ```bash
 gunzip gutenberg_poetry_corpus.ndjson.gz
 ```

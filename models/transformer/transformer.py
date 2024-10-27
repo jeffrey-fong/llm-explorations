@@ -8,7 +8,6 @@ from torch import nn
 
 from models.transformer.block import DecoderBlock, EncoderBlock
 from models.transformer.embedding import SinusoidalEmbedding
-from utils.tokenizer import Tokenizer
 
 
 class Transformer(nn.Module):
@@ -74,4 +73,5 @@ class Transformer(nn.Module):
         max_new_tokens: Optional[int] = None,
         temperature: float = 1.0,
     ):
+        # TODO: Implement generation
         pass
