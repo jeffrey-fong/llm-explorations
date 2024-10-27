@@ -70,12 +70,14 @@ def train(tokenizer: Tokenizer, model: Transformer):
     train_dataloader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True)
     val_dataloader = DataLoader(val_data, batch_size=args.batch_size, shuffle=True)
 
-    max_steps = len(train_dataloader) * args.epochs
+    max_steps = (
+        len(train_dataloader) // args.gradient_accumulation_steps
+    ) * args.epochs
 
     date = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     writer = SummaryWriter(f"runs/{args.model_type}_{date}")
 
-    opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    opt = torch.optim.AdamW(model.parameters(), lr=1.0)
     scheduler = torch.optim.lr_scheduler.LambdaLR(
         opt, lr_lambda=lambda step: cosine_lr_schedule(step, max_steps)
     )
@@ -89,22 +91,33 @@ def train(tokenizer: Tokenizer, model: Transformer):
             X, y = X.to(args.device), y.to(args.device)
             logits, loss = model(X, y)
 
+            # Scale loss by gradient accumulation steps
+            loss = loss / args.gradient_accumulation_steps
+
             # Backward pass
             loss.backward()
-            opt.step()
-            scheduler.step()
-            opt.zero_grad()
-            progress_bar.set_postfix({"train_loss": loss.item()})
+            # Only update weights and log metrics after accumulating gradients
+            if (step + 1) % args.gradient_accumulation_steps == 0:
+                opt.step()
+                scheduler.step()
+                opt.zero_grad()
 
-            # Log training metrics
-            train_loss += loss.item()
-            progress_bar.set_postfix({"train_loss": loss.item()})
-            curr_step = epoch * len(train_dataloader) + step
-            writer.add_scalar("Loss/train_step", loss.item(), curr_step)
-            writer.add_scalar("Learning_rate", scheduler.get_last_lr()[0], curr_step)
+                # Log training metrics (use unscaled loss for logging)
+                train_loss += loss.item() * args.gradient_accumulation_steps
+                curr_step = (step + 1) // args.gradient_accumulation_steps
+                print(curr_step)
+                writer.add_scalar(
+                    "Loss/train_step",
+                    loss.item() * args.gradient_accumulation_steps,
+                    curr_step,
+                )
+                writer.add_scalar(
+                    "Learning_rate", scheduler.get_last_lr()[0], curr_step
+                )
 
         # Log average training loss for epoch
-        avg_train_loss = train_loss / len(train_dataloader)
+        num_training_steps = len(train_dataloader) // args.gradient_accumulation_steps
+        avg_train_loss = train_loss / num_training_steps
         writer.add_scalar("Loss/train_epoch", avg_train_loss, epoch)
 
         # Validation
@@ -154,9 +167,15 @@ def parse_args():
     )
 
     # Training Arguments
-    parser.add_argument("--lr", type=float, default=0.002, help="Learning rate")
+    parser.add_argument("--lr", type=float, default=0.001, help="Learning rate")
     parser.add_argument("--warmup-steps", type=int, default=100, help="Warmup steps")
     parser.add_argument("--batch-size", type=int, default=64, help="Batch size")
+    parser.add_argument(
+        "--gradient-accumulation-steps",
+        type=int,
+        default=2,
+        help="Gradient accumulation steps",
+    )
     parser.add_argument("--epochs", type=int, default=10, help="Number of epochs")
     return parser.parse_args()
 
