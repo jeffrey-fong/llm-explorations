@@ -18,9 +18,9 @@ class EncoderBlock(nn.Module):
         self.attn_norm = LayerNorm(hidden_size)
         self.ffn_norm = LayerNorm(hidden_size)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         pre_x = x
-        x = self.attn(x)
+        x = self.attn(x, mask=mask)
         x = self.attn_dropout(x)
         x = self.attn_norm(pre_x + x)
         pre_x = x

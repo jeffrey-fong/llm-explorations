@@ -7,6 +7,7 @@ class Tokenizer:
     def __init__(self) -> None:
         self.enc = tiktoken.get_encoding("o200k_base")  # Use o1/gpt-4o encoding
         self.vocab_size = self.enc.n_vocab
+        self.pad_token_id = self.enc.encode("<|endoftext|>", allowed_special="all")[0]
 
     def encode(self, text: Union[str, List[str]]) -> Union[List[List[str]], List[str]]:
         if isinstance(text, str):

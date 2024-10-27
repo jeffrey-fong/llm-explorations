@@ -22,7 +22,7 @@ class GutenbergPoetryDataset(Dataset):
         # One data point should not contain text from multiple ids.
 
         self.data = tokenizer.encode("".join(self.data))
-        self.labels = self.data[1:] + [0]
+        self.labels = self.data[1:] + [tokenizer.pad_token_id]
         # Split data into sequences of length seq_len
         self.data = [
             self.data[i : min(i + seq_len, len(self.data))]
@@ -34,9 +34,13 @@ class GutenbergPoetryDataset(Dataset):
         ]
         # Pad the last sequence if necessary
         if len(self.data[-1]) < seq_len:
-            self.data[-1] = self.data[-1] + [0] * (seq_len - len(self.data[-1]))
+            self.data[-1] = self.data[-1] + [tokenizer.pad_token_id] * (
+                seq_len - len(self.data[-1])
+            )
         if len(self.labels[-1]) < seq_len:
-            self.labels[-1] = self.labels[-1] + [0] * (seq_len - len(self.labels[-1]))
+            self.labels[-1] = self.labels[-1] + [tokenizer.pad_token_id] * (
+                seq_len - len(self.labels[-1])
+            )
 
     def __len__(self):
         return len(self.data)
@@ -185,6 +189,7 @@ def main():
         model = Transformer(
             seq_len=args.seq_len,
             vocab_size=tokenizer.vocab_size,
+            pad_id=tokenizer.pad_token_id,
             device=args.device,
         ).to(args.device)
     else:

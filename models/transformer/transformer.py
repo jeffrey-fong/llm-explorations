@@ -15,10 +15,12 @@ class Transformer(nn.Module):
         self,
         seq_len: int,
         vocab_size: int,
+        pad_id: int,
         device: Literal["cpu", "cuda"],
     ) -> None:
         super().__init__()
         self.vocab_size = vocab_size
+        self.pad_id = pad_id
         self.input_emb = SinusoidalEmbedding(seq_len, 512, self.vocab_size, device)
         self.target_emb = SinusoidalEmbedding(seq_len, 512, self.vocab_size, device)
         self.encoder = nn.ModuleList(
@@ -39,23 +41,26 @@ class Transformer(nn.Module):
         mask = mask.expand(batch_size, 1, seq_len, seq_len)
         return mask.to(x.device)
 
+    def _make_padding_mask(self, x: torch.Tensor) -> torch.Tensor:
+        """Creates a padding mask to prevent attending to padding tokens."""
+        mask = (x == self.pad_id).unsqueeze(1)  # (batch_size, 1, seq_len)
+        # Use logical OR to expand mask to (batch_size, 1, seq_len, seq_len)
+        mask = mask.unsqueeze(-1) | mask.unsqueeze(-2)
+        return mask.to(x.device)
+
     def forward(
         self, input_ids: torch.Tensor, labels: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
         inputs = self.input_emb(input_ids)
+        padding_mask = self._make_padding_mask(input_ids)
         for block in self.encoder:
-            inputs = block(inputs)
-
-        # TODO: Implement padding masking to prevent attending to padding tokens
-        # This should create a mask that is True for padding tokens (usually token_id = 0)
-        # and False for regular tokens, then expand it for the attention heads
-        # The mask should be applied in both encoder and decoder attention layers
+            inputs = block(inputs, padding_mask)
 
         targets = self.target_emb(labels)
-        # Create causal mask to prevent attending to future tokens
+        padding_mask = self._make_padding_mask(labels)
         causal_mask = self._make_causal_mask(targets)
         for block in self.decoder:
-            targets = block(targets, inputs, causal_mask)
+            targets = block(targets, inputs, causal_mask | padding_mask)
         logits = self.lm_head(targets)
 
         # Assuming we have labels for computing the loss
