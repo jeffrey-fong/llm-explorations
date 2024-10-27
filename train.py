@@ -1,4 +1,5 @@
 import argparse
+import collections
 import datetime
 import json
 import math
@@ -15,32 +16,40 @@ from utils.tokenizer import Tokenizer
 
 class GutenbergPoetryDataset(Dataset):
     def __init__(self, seq_len: int, tokenizer: Tokenizer):
+        # Form a list of tokenized strings, one for each group id.
+        grouped_data = collections.defaultdict(list)
         with open("gutenberg_poetry_corpus.ndjson", "r") as file:
-            self.data = [json.loads(line.strip())["s"] for line in file]
-
-        # TODO: Split the text according to the id too.
-        # One data point should not contain text from multiple ids.
-
-        self.data = tokenizer.encode("".join(self.data))
-        self.labels = self.data[1:] + [tokenizer.pad_token_id]
-        # Split data into sequences of length seq_len
+            for line in file:
+                item = json.loads(line.strip())
+                grouped_data[item["gid"]].append(item["s"])
         self.data = [
-            self.data[i : min(i + seq_len, len(self.data))]
-            for i in range(0, len(self.data), seq_len)
+            tokenizer.encode(" ".join(sentences)) for sentences in grouped_data.values()
         ]
-        self.labels = [
-            self.labels[i : min(i + seq_len, len(self.labels))]
-            for i in range(0, len(self.labels), seq_len)
-        ]
-        # Pad the last sequence if necessary
-        if len(self.data[-1]) < seq_len:
-            self.data[-1] = self.data[-1] + [tokenizer.pad_token_id] * (
-                seq_len - len(self.data[-1])
-            )
-        if len(self.labels[-1]) < seq_len:
-            self.labels[-1] = self.labels[-1] + [tokenizer.pad_token_id] * (
-                seq_len - len(self.labels[-1])
-            )
+        self.labels = [data[1:] + [tokenizer.pad_token_id] for data in self.data]
+
+        # Split data into sequences of length seq_len
+        for i, (data, labels) in enumerate(zip(self.data, self.labels)):
+            self.data[i] = [
+                self.data[i][j : min(j + seq_len, len(data))]
+                for j in range(0, len(data), seq_len)
+            ]
+            self.labels[i] = [
+                self.labels[i][j : min(j + seq_len, len(labels))]
+                for j in range(0, len(labels), seq_len)
+            ]
+            # Pad the last sequence if necessary
+            if len(self.data[i][-1]) < seq_len:
+                self.data[i][-1] = self.data[i][-1] + [tokenizer.pad_token_id] * (
+                    seq_len - len(self.data[i][-1])
+                )
+            if len(self.labels[i][-1]) < seq_len:
+                self.labels[i][-1] = self.labels[i][-1] + [tokenizer.pad_token_id] * (
+                    seq_len - len(self.labels[i][-1])
+                )
+
+        # Flatten the nested lists
+        self.data = [seq for doc in self.data for seq in doc]
+        self.labels = [seq for doc in self.labels for seq in doc]
 
     def __len__(self):
         return len(self.data)
