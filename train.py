@@ -75,13 +75,28 @@ def cosine_lr_schedule(step: int, max_steps: int) -> float:
     return min_lr + 0.5 * (args.lr - min_lr) * (1.0 + math.cos(math.pi * progress))
 
 
+def validate(model: Transformer, tokenizer: Tokenizer, val_dataloader: DataLoader):
+    model.eval()
+    val_loss = 0.0
+    with torch.no_grad():
+        for X, y in val_dataloader:
+            X, y = X.to(args.device), y.to(args.device)
+            _, loss = model(X, y)
+            val_loss += loss
+
+    avg_val_loss = val_loss / len(val_dataloader)
+    return avg_val_loss
+
+
 def train(tokenizer: Tokenizer, model: Transformer):
     dataset = GutenbergPoetryDataset(args.seq_len, tokenizer)
     train_data, val_data = torch.utils.data.random_split(
         dataset, [args.train_ratio, 1 - args.train_ratio]
     )
-    train_dataloader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True)
-    val_dataloader = DataLoader(val_data, batch_size=args.batch_size, shuffle=True)
+    train_dataloader = DataLoader(
+        train_data, batch_size=args.train_batch_size, shuffle=True
+    )
+    val_dataloader = DataLoader(val_data, batch_size=args.val_batch_size, shuffle=True)
 
     max_steps = (
         len(train_dataloader) // args.gradient_accumulation_steps
@@ -115,9 +130,10 @@ def train(tokenizer: Tokenizer, model: Transformer):
                 scheduler.step()
                 opt.zero_grad()
 
+                curr_step = (step + 1) // args.gradient_accumulation_steps
+
                 # Log training metrics (use unscaled loss for logging)
                 train_loss += loss.item() * args.gradient_accumulation_steps
-                curr_step = (step + 1) // args.gradient_accumulation_steps
                 writer.add_scalar(
                     "Loss/train_step",
                     loss.item() * args.gradient_accumulation_steps,
@@ -127,23 +143,19 @@ def train(tokenizer: Tokenizer, model: Transformer):
                     "Learning_rate", scheduler.get_last_lr()[0], curr_step
                 )
 
+                # Run validation every args.eval_every steps
+                if curr_step % args.eval_every == 0:
+                    avg_val_loss = validate(model, tokenizer, val_dataloader)
+                    writer.add_scalar("Loss/validation", avg_val_loss, curr_step)
+                    model.train()  # Switch back to training mode
+
         # Log average training loss for epoch
         num_training_steps = len(train_dataloader) // args.gradient_accumulation_steps
         avg_train_loss = train_loss / num_training_steps
         writer.add_scalar("Loss/train_epoch", avg_train_loss, epoch)
 
         # Validation
-        model.eval()
-        val_loss = 0.0
-        val_progress = tqdm(val_dataloader, desc=f"Validation epoch {epoch + 1}")
-        with torch.no_grad():
-            for X, y in val_progress:
-                X, y = X.to(args.device), y.to(args.device)
-                _, loss = model(X, y)
-                val_loss += loss
 
-        # Log validation metrics
-        avg_val_loss = val_loss / len(val_dataloader)
         writer.add_scalar("Loss/validation", avg_val_loss, epoch)
         print(f"Validation loss: {avg_val_loss}")
 
@@ -179,16 +191,22 @@ def parse_args():
     )
 
     # Training Arguments
-    parser.add_argument("--lr", type=float, default=0.001, help="Learning rate")
+    parser.add_argument("--lr", type=float, default=0.0001, help="Learning rate")
     parser.add_argument("--warmup-steps", type=int, default=100, help="Warmup steps")
-    parser.add_argument("--batch-size", type=int, default=64, help="Batch size")
+    parser.add_argument("--train-batch-size", type=int, default=64, help="Batch size")
     parser.add_argument(
         "--gradient-accumulation-steps",
         type=int,
-        default=2,
+        default=4,
         help="Gradient accumulation steps",
     )
-    parser.add_argument("--epochs", type=int, default=10, help="Number of epochs")
+    parser.add_argument("--epochs", type=int, default=1, help="Number of epochs")
+    parser.add_argument(
+        "--eval-every", type=int, default=100, help="Validation every n steps"
+    )
+    parser.add_argument(
+        "--val-batch-size", type=int, default=96, help="Validation batch size"
+    )
     return parser.parse_args()
 
 
