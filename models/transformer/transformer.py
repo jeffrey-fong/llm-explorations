@@ -31,36 +31,41 @@ class Transformer(nn.Module):
         )
         self.lm_head = nn.Linear(512, self.vocab_size)
 
-    def _make_causal_mask(self, x: torch.Tensor) -> torch.Tensor:
-        """Creates a causal mask to prevent attending to future tokens."""
-        batch_size, seq_len = x.size(0), x.size(1)
-        # Create lower triangular matrix
-        mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=1).bool()
-        # Expand mask for batch size and number of heads
-        mask = mask.unsqueeze(0).unsqueeze(0)
-        mask = mask.expand(batch_size, 1, seq_len, seq_len)
+    def _make_encoder_mask(self, x: torch.Tensor) -> torch.Tensor:
+        """Creates encoder mask which prevents attending to padding tokens."""
+        mask = (x == self.pad_id).unsqueeze(1).unsqueeze(1)
+        # mask = mask.unsqueeze(-1) | mask.unsqueeze(-2)
         return mask.to(x.device)
 
-    def _make_padding_mask(self, x: torch.Tensor) -> torch.Tensor:
-        """Creates a padding mask to prevent attending to padding tokens."""
-        mask = (x == self.pad_id).unsqueeze(1)  # (batch_size, 1, seq_len)
-        # Use logical OR to expand mask to (batch_size, 1, seq_len, seq_len)
-        mask = mask.unsqueeze(-1) | mask.unsqueeze(-2)
-        return mask.to(x.device)
+    def _make_decoder_mask(self, x: torch.Tensor, x_emb: torch.Tensor) -> torch.Tensor:
+        """Creates decoder mask which prevents attending to future and padding tokens."""
+        # Create padding mask
+        pad_mask = (
+            (x == self.pad_id).unsqueeze(1).unsqueeze(3).to(x.device)
+        )  # (b, 1, s, 1)
+
+        # Create causal mask
+        batch_size, seq_len = x_emb.size(0), x_emb.size(1)
+        # Create lower triangular matrix
+        causal_mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=1).bool()
+        # Expand mask for batch size and number of heads
+        causal_mask = causal_mask.unsqueeze(0).unsqueeze(0)
+        causal_mask = causal_mask.expand(batch_size, 1, seq_len, seq_len).to(x.device)
+
+        return pad_mask | causal_mask
 
     def forward(
         self, input_ids: torch.Tensor, labels: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
         inputs = self.input_emb(input_ids)
-        padding_mask = self._make_padding_mask(input_ids)
+        encoder_mask = self._make_encoder_mask(input_ids)
         for block in self.encoder:
-            inputs = block(inputs, padding_mask)
+            inputs = block(inputs, encoder_mask)
 
         targets = self.target_emb(labels)
-        padding_mask = self._make_padding_mask(labels)
-        causal_mask = self._make_causal_mask(targets)
+        decoder_mask = self._make_decoder_mask(labels, targets)
         for block in self.decoder:
-            targets = block(targets, inputs, causal_mask | padding_mask)
+            targets = block(targets, inputs, decoder_mask)
         logits = self.lm_head(targets)
 
         # Assuming we have labels for computing the loss

@@ -21,7 +21,7 @@ class Attention(nn.Module):
         attn_scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.head_dim)
         # Apply mask by setting masked positions to -inf
         if mask is not None:
-            attn_scores = attn_scores.masked_fill(mask, float("-inf"))
+            attn_scores = attn_scores.masked_fill(mask, -10000)
         attn_weights = torch.softmax(attn_scores, dim=-1)
         output = torch.matmul(attn_weights, v)
         return output
