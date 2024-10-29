@@ -156,7 +156,7 @@ def train(tokenizer: Tokenizer, model: Transformer):
 
         # Validation
 
-        writer.add_scalar("Loss/validation", avg_val_loss, epoch)
+        writer.add_scalar("Loss/validation_epoch", avg_val_loss, epoch)
         print(f"Validation loss: {avg_val_loss}")
 
     writer.close()
@@ -184,7 +184,7 @@ def parse_args():
         help="Model type (currently only transformer is supported)",
     )
     parser.add_argument(
-        "--seq-len", type=int, default=128, help="Max sequence length of the model"
+        "--seq-len", type=int, default=256, help="Max sequence length of the model"
     )
     parser.add_argument(
         "--device", type=str, default="cpu", help="Device to use for training"
@@ -193,11 +193,11 @@ def parse_args():
     # Training Arguments
     parser.add_argument("--lr", type=float, default=0.0001, help="Learning rate")
     parser.add_argument("--warmup-steps", type=int, default=100, help="Warmup steps")
-    parser.add_argument("--train-batch-size", type=int, default=64, help="Batch size")
+    parser.add_argument("--train-batch-size", type=int, default=32, help="Batch size")
     parser.add_argument(
         "--gradient-accumulation-steps",
         type=int,
-        default=4,
+        default=2,
         help="Gradient accumulation steps",
     )
     parser.add_argument("--epochs", type=int, default=1, help="Number of epochs")
@@ -205,7 +205,7 @@ def parse_args():
         "--eval-every", type=int, default=100, help="Validation every n steps"
     )
     parser.add_argument(
-        "--val-batch-size", type=int, default=96, help="Validation batch size"
+        "--val-batch-size", type=int, default=32, help="Validation batch size"
     )
     return parser.parse_args()
 
