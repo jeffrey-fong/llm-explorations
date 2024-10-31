@@ -3,14 +3,14 @@ import collections
 import datetime
 import json
 import math
-from typing import Dict, List
+from typing import Dict, List, Union
 
 import torch
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from models.transformer.transformer import Transformer
+from models.transformer.transformer import ClassicalTransformer, DecoderOnlyTransformer
 from utils.tokenizer import Tokenizer
 
 
@@ -75,7 +75,11 @@ def cosine_lr_schedule(step: int, max_steps: int) -> float:
     return min_lr + 0.5 * (args.lr - min_lr) * (1.0 + math.cos(math.pi * progress))
 
 
-def validate(model: Transformer, tokenizer: Tokenizer, val_dataloader: DataLoader):
+def validate(
+    model: Union[ClassicalTransformer, DecoderOnlyTransformer],
+    tokenizer: Tokenizer,
+    val_dataloader: DataLoader,
+):
     model.eval()
     val_loss = 0.0
     with torch.no_grad():
@@ -88,7 +92,9 @@ def validate(model: Transformer, tokenizer: Tokenizer, val_dataloader: DataLoade
     return avg_val_loss
 
 
-def train(tokenizer: Tokenizer, model: Transformer):
+def train(
+    tokenizer: Tokenizer, model: Union[ClassicalTransformer, DecoderOnlyTransformer]
+):
     dataset = GutenbergPoetryDataset(args.seq_len, tokenizer)
     train_data, val_data = torch.utils.data.random_split(
         dataset, [args.train_ratio, 1 - args.train_ratio]
@@ -146,7 +152,7 @@ def train(tokenizer: Tokenizer, model: Transformer):
                 # Run validation every args.eval_every steps
                 if curr_step % args.eval_every == 0:
                     avg_val_loss = validate(model, tokenizer, val_dataloader)
-                    writer.add_scalar("Loss/validation", avg_val_loss, curr_step)
+                    writer.add_scalar("Loss/validation_step", avg_val_loss, curr_step)
                     model.train()  # Switch back to training mode
 
         # Log average training loss for epoch
@@ -180,7 +186,7 @@ def parse_args():
         "--model-type",
         type=str,
         default="transformer",
-        choices=["transformer"],
+        choices=["transformer", "decoder-only"],
         help="Model type (currently only transformer is supported)",
     )
     parser.add_argument(
@@ -213,7 +219,14 @@ def parse_args():
 def main():
     tokenizer = Tokenizer()
     if args.model_type == "transformer":
-        model = Transformer(
+        model = ClassicalTransformer(
+            seq_len=args.seq_len,
+            vocab_size=tokenizer.vocab_size,
+            pad_id=tokenizer.pad_token_id,
+            device=args.device,
+        ).to(args.device)
+    elif args.model_type == "decoder-only":
+        model = DecoderOnlyTransformer(
             seq_len=args.seq_len,
             vocab_size=tokenizer.vocab_size,
             pad_id=tokenizer.pad_token_id,

@@ -27,6 +27,7 @@ class EncoderBlock(nn.Module):
         x = self.ffn(x)
         x = self.ffn_dropout(x)
         x = self.ffn_norm(pre_x + x)
+
         return x
 
 
@@ -62,4 +63,30 @@ class DecoderBlock(nn.Module):
         x = self.ffn(x)
         x = self.ffn_dropout(x)
         x = self.ffn_norm(pre_x + x)
+
+        return x
+
+
+class DecoderOnlyBlock(nn.Module):
+    def __init__(
+        self, hidden_size: int, num_heads: int, ffn_size: int, dropout_rate: float
+    ) -> None:
+        super().__init__()
+        self.pre_norm = RMSNorm(hidden_size)
+        self.post_norm = RMSNorm(hidden_size)
+        self.attn = MultiHeadAttention(hidden_size, num_heads)
+        self.ffn = FeedForwardLayer(hidden_size, ffn_size)
+
+    def forward(self, x: torch.Tensor, causal_mask: torch.Tensor) -> torch.Tensor:
+        # Attention with causal mask
+        residual = x
+        x = self.pre_norm(x)
+        x = self.attn(x, mask=causal_mask)
+        x = residual + x
+        # Feed-forward
+        residual = x
+        x = self.post_norm(x)
+        x = self.ffn(x)
+        x = residual + x
+
         return x
