@@ -203,12 +203,12 @@ def parse_args():
     parser.add_argument(
         "--gradient-accumulation-steps",
         type=int,
-        default=2,
+        default=1,
         help="Gradient accumulation steps",
     )
     parser.add_argument("--epochs", type=int, default=1, help="Number of epochs")
     parser.add_argument(
-        "--eval-every", type=int, default=100, help="Validation every n steps"
+        "--eval-every", type=int, default=1000, help="Validation every n steps"
     )
     parser.add_argument(
         "--val-batch-size", type=int, default=32, help="Validation batch size"

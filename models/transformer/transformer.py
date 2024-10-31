@@ -21,13 +21,34 @@ class ClassicalTransformer(nn.Module):
         super().__init__()
         self.vocab_size = vocab_size
         self.pad_id = pad_id
-        self.input_emb = SinusoidalEmbedding(seq_len, 512, self.vocab_size, device)
-        self.target_emb = SinusoidalEmbedding(seq_len, 512, self.vocab_size, device)
+
+        self.hidden_size = 512
+        self.num_heads = 8
+        self.ffn_size = 2048
+        self.dropout_rate = 0.1
+        self.num_layers = 6
+
+        self.input_emb = SinusoidalEmbedding(
+            seq_len, self.hidden_size, self.vocab_size, device
+        )
+        self.target_emb = SinusoidalEmbedding(
+            seq_len, self.hidden_size, self.vocab_size, device
+        )
         self.encoder = nn.ModuleList(
-            [EncoderBlock(512, 8, 2048, 0.1) for _ in range(6)]
+            [
+                EncoderBlock(
+                    self.hidden_size, self.num_heads, self.ffn_size, self.dropout_rate
+                )
+                for _ in range(self.num_layers)
+            ]
         )
         self.decoder = nn.ModuleList(
-            [DecoderBlock(512, 8, 2048, 0.1) for _ in range(6)]
+            [
+                DecoderBlock(
+                    self.hidden_size, self.num_heads, self.ffn_size, self.dropout_rate
+                )
+                for _ in range(self.num_layers)
+            ]
         )
         self.lm_head = nn.Linear(512, self.vocab_size)
 
@@ -97,11 +118,26 @@ class DecoderOnlyTransformer(nn.Module):
         super().__init__()
         self.vocab_size = vocab_size
         self.pad_id = pad_id
-        self.input_emb = RopeEmbedding(seq_len, 512, self.vocab_size, 10000, device)
-        self.decoder = nn.ModuleList(
-            [DecoderOnlyBlock(512, 8, 2048, 0.1) for _ in range(6)]
+
+        self.hidden_size = 512
+        self.num_heads = 8
+        self.ffn_size = 2048
+        self.num_layers = 12
+        self.base = 10000
+
+        self.input_emb = nn.Embedding(
+            self.vocab_size, self.hidden_size, padding_idx=pad_id
         )
-        self.lm_head = nn.Linear(512, self.vocab_size)
+        self.rope_emb = RopeEmbedding(
+            seq_len, self.hidden_size // self.num_heads, self.base, device
+        )
+        self.decoder = nn.ModuleList(
+            [
+                DecoderOnlyBlock(self.hidden_size, self.num_heads, self.ffn_size)
+                for _ in range(self.num_layers)
+            ]
+        )
+        self.lm_head = nn.Linear(self.hidden_size, self.vocab_size)
 
     def _make_padded_causal_mask(self, x: torch.Tensor) -> torch.Tensor:
         """Creates a causal mask which prevents attending to padding tokens."""
@@ -124,7 +160,7 @@ class DecoderOnlyTransformer(nn.Module):
 
         causal_mask = self._make_padded_causal_mask(input_ids)
         for block in self.decoder:
-            inputs = block(inputs, causal_mask)
+            inputs = block(inputs, causal_mask, self.rope_emb)
         logits = self.lm_head(inputs)
 
         # Assuming we have labels for computing the loss
