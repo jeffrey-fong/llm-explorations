@@ -10,11 +10,16 @@ from models.transformer.layer_norm import LayerNorm, RMSNorm
 
 class EncoderBlock(nn.Module):
     def __init__(
-        self, hidden_size: int, num_heads: int, ffn_size: int, dropout_rate: float
+        self,
+        hidden_size: int,
+        num_heads: int,
+        ffn_size: int,
+        dropout_rate: float,
+        activation: str,
     ) -> None:
         super().__init__()
         self.attn = MultiHeadAttention(hidden_size, num_heads)
-        self.ffn = FeedForwardLayer(hidden_size, ffn_size)
+        self.ffn = FeedForwardLayer(hidden_size, ffn_size, activation)
         self.attn_dropout = nn.Dropout(dropout_rate)
         self.ffn_dropout = nn.Dropout(dropout_rate)
         self.attn_norm = LayerNorm(hidden_size)
@@ -35,12 +40,17 @@ class EncoderBlock(nn.Module):
 
 class DecoderBlock(nn.Module):
     def __init__(
-        self, hidden_size: int, num_heads: int, ffn_size: int, dropout_rate: float
+        self,
+        hidden_size: int,
+        num_heads: int,
+        ffn_size: int,
+        dropout_rate: float,
+        activation: str,
     ) -> None:
         super().__init__()
         self.attn = MultiHeadAttention(hidden_size, num_heads)
         self.cross_attn = MultiHeadAttention(hidden_size, num_heads)
-        self.ffn = FeedForwardLayer(hidden_size, ffn_size)
+        self.ffn = FeedForwardLayer(hidden_size, ffn_size, activation)
         self.attn_dropout = nn.Dropout(dropout_rate)
         self.cross_attn_dropout = nn.Dropout(dropout_rate)
         self.ffn_dropout = nn.Dropout(dropout_rate)
@@ -70,12 +80,14 @@ class DecoderBlock(nn.Module):
 
 
 class DecoderOnlyBlock(nn.Module):
-    def __init__(self, hidden_size: int, num_heads: int, ffn_size: int) -> None:
+    def __init__(
+        self, hidden_size: int, num_heads: int, ffn_size: int, activation: str
+    ) -> None:
         super().__init__()
         self.attn_norm = RMSNorm(hidden_size)
         self.ffn_norm = RMSNorm(hidden_size)
         self.attn = MultiHeadAttention(hidden_size, num_heads)
-        self.ffn = FeedForwardLayer(hidden_size, ffn_size)
+        self.ffn = FeedForwardLayer(hidden_size, ffn_size, activation)
 
     def forward(
         self,

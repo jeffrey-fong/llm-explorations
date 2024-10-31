@@ -62,7 +62,7 @@ class GutenbergPoetryDataset(Dataset):
 
 
 def cosine_lr_schedule(step: int, max_steps: int) -> float:
-    min_lr = min(args.lr / 5, 1e-4)
+    min_lr = args.lr / 5
 
     # Warmup phase
     if step < args.warmup_steps:
@@ -197,7 +197,7 @@ def parse_args():
     )
 
     # Training Arguments
-    parser.add_argument("--lr", type=float, default=0.0001, help="Learning rate")
+    parser.add_argument("--lr", type=float, default=0.001, help="Learning rate")
     parser.add_argument("--warmup-steps", type=int, default=100, help="Warmup steps")
     parser.add_argument("--train-batch-size", type=int, default=32, help="Batch size")
     parser.add_argument(
@@ -208,7 +208,7 @@ def parse_args():
     )
     parser.add_argument("--epochs", type=int, default=1, help="Number of epochs")
     parser.add_argument(
-        "--eval-every", type=int, default=1000, help="Validation every n steps"
+        "--eval-every", type=int, default=5000, help="Validation every n steps"
     )
     parser.add_argument(
         "--val-batch-size", type=int, default=32, help="Validation batch size"

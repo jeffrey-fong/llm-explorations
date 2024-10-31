@@ -27,6 +27,7 @@ class ClassicalTransformer(nn.Module):
         self.ffn_size = 2048
         self.dropout_rate = 0.1
         self.num_layers = 6
+        self.activation = "relu"
 
         self.input_emb = SinusoidalEmbedding(
             seq_len, self.hidden_size, self.vocab_size, device
@@ -37,7 +38,11 @@ class ClassicalTransformer(nn.Module):
         self.encoder = nn.ModuleList(
             [
                 EncoderBlock(
-                    self.hidden_size, self.num_heads, self.ffn_size, self.dropout_rate
+                    self.hidden_size,
+                    self.num_heads,
+                    self.ffn_size,
+                    self.dropout_rate,
+                    self.activation,
                 )
                 for _ in range(self.num_layers)
             ]
@@ -45,7 +50,11 @@ class ClassicalTransformer(nn.Module):
         self.decoder = nn.ModuleList(
             [
                 DecoderBlock(
-                    self.hidden_size, self.num_heads, self.ffn_size, self.dropout_rate
+                    self.hidden_size,
+                    self.num_heads,
+                    self.ffn_size,
+                    self.dropout_rate,
+                    self.activation,
                 )
                 for _ in range(self.num_layers)
             ]
@@ -124,6 +133,7 @@ class DecoderOnlyTransformer(nn.Module):
         self.ffn_size = 2048
         self.num_layers = 12
         self.theta = 10000
+        self.activation = "swiglu"
 
         self.freqs_cis = get_rope_freqs(
             self.theta, seq_len, self.hidden_size // self.num_heads, device
@@ -134,7 +144,9 @@ class DecoderOnlyTransformer(nn.Module):
         )
         self.decoder = nn.ModuleList(
             [
-                DecoderOnlyBlock(self.hidden_size, self.num_heads, self.ffn_size)
+                DecoderOnlyBlock(
+                    self.hidden_size, self.num_heads, self.ffn_size, self.activation
+                )
                 for _ in range(self.num_layers)
             ]
         )
