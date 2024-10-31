@@ -4,7 +4,7 @@ from typing import Optional
 import torch
 from torch import nn
 
-from models.transformer.embedding import RopeEmbedding
+from models.transformer.embedding import apply_rope_embedding
 
 
 class Attention(nn.Module):
@@ -47,7 +47,7 @@ class MultiHeadAttention(nn.Module):
         x: torch.Tensor,
         enc: Optional[torch.Tensor] = None,
         mask: Optional[torch.Tensor] = None,
-        rope_emb: Optional[RopeEmbedding] = None,
+        freqs_cis: torch.Tensor = None,
     ) -> torch.Tensor:
         q = self.q_proj(x) if enc is None else self.q_proj(enc)
         k = self.k_proj(x) if enc is None else self.k_proj(enc)
@@ -58,8 +58,8 @@ class MultiHeadAttention(nn.Module):
         k = k.view(k.size(0), k.size(1), self.num_heads, self.head_dim).transpose(1, 2)
         v = v.view(v.size(0), v.size(1), self.num_heads, self.head_dim).transpose(1, 2)
         # Apply rope embeddings to q and k if provided
-        if rope_emb is not None:
-            q, k = rope_emb(q), rope_emb(k)
+        if freqs_cis is not None:
+            q, k = apply_rope_embedding(q, k, freqs_cis)
         # Compute attention
         output = self.attention(q, k, v, mask=mask)
         # Join back the heads

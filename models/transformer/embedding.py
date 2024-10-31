@@ -38,59 +38,32 @@ class SinusoidalEmbedding(nn.Module):
         return token_emb + pos_emb.unsqueeze(0).expand(batch_size, -1, -1)
 
 
-class RopeEmbedding(nn.Module):
-    def __init__(
-        self,
-        seq_len: int,
-        hidden_size: int,
-        base: float,
-        device: Literal["cpu", "cuda"],
-    ) -> None:
-        super().__init__()
-        self.seq_len = seq_len
-        self.hidden_size = hidden_size
-        self.base = base
-        self.device = device
-
-        self.cos_pos_emb, self.sin_pos_emb = self._get_rope_embedding()
-
-    def _get_rope_embedding(self) -> torch.Tensor:
-        freqs = 1.0 / (
-            self.base
-            ** (
-                torch.arange(0, self.hidden_size, 2)[: (self.hidden_size // 2)]
-                .float()
-                .to(self.device)
-                / self.hidden_size
-            )
+def get_rope_freqs(
+    theta: float, seq_len: int, hidden_size: int, device: Literal["cpu", "cuda"]
+) -> torch.Tensor:
+    freqs = 1.0 / (
+        theta
+        ** (
+            torch.arange(0, hidden_size, 2)[: (hidden_size // 2)].float().to(device)
+            / hidden_size
         )
-        breakpoint()
-        t = torch.arange(self.seq_len, device=self.device)
-        freqs = torch.outer(t, freqs).float()
-        freqs_cis = torch.polar(torch.ones_like(freqs), freqs)  # complex64
+    )
+    t = torch.arange(seq_len, device=device)
+    freqs = torch.outer(t, freqs).float()
+    freqs_cis = torch.polar(torch.ones_like(freqs), freqs)
 
-        return freqs_cis
-        # # Get theta
-        # i = torch.arange(0, self.hidden_size, step=2).float()
-        # theta = 1.0 / self.base ** (i / self.hidden_size)
-        # theta = theta.unsqueeze(0)
-        # # Get tensor of positions x theta
-        # pos = torch.arange(0, self.seq_len).float().unsqueeze(1)
-        # m_theta = pos @ theta  # (seq_len, hidden_size/2)
-        # # Get cos and sin
-        # cos_m_theta = torch.cos(m_theta)  # (seq_len, hidden_size/2)
-        # sin_m_theta = torch.sin(m_theta)  # (seq_len, hidden_size/2)
-        # # Repeat each value to get (cos1,cos1,cos2,cos2,...) and (sin1,sin1,sin2,sin2,...)
-        # cos_m_theta = cos_m_theta.repeat_interleave(2, dim=1)  # (seq_len, hidden_size)
-        # sin_m_theta = sin_m_theta.repeat_interleave(2, dim=1)  # (seq_len, hidden_size)
+    return freqs_cis
 
-        # return cos_m_theta.to(self.device), sin_m_theta.to(self.device)
 
-    @torch.no_grad()
-    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        _, _, seq_len, _ = x.size()
-        cos_pos_emb = self.cos_pos_emb[:seq_len, :].unsqueeze(0).unsqueeze(0)
-        sin_pos_emb = self.sin_pos_emb[:seq_len, :].unsqueeze(0).unsqueeze(0)
-        inv_x = torch.stack((-x[..., 1::2], x[..., ::2]), dim=-1).flatten(-2)
+def apply_rope_embedding(
+    q: torch.Tensor, k: torch.Tensor, freqs_cis: torch.Tensor
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    q_ = torch.view_as_complex(q.reshape(*q.shape[:-1], -1, 2))
+    k_ = torch.view_as_complex(k.reshape(*k.shape[:-1], -1, 2))
+    freqs_cis = freqs_cis.view(
+        *[d if i == 2 or i == 3 else 1 for i, d in enumerate(q_.shape)]
+    )
+    q = torch.view_as_real(q_ * freqs_cis).flatten(3).type_as(q)
+    k = torch.view_as_real(k_ * freqs_cis).flatten(3).type_as(k)
 
-        return x * cos_pos_emb + inv_x * sin_pos_emb
+    return q, k

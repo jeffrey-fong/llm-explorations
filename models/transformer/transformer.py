@@ -7,7 +7,7 @@ import torch
 from torch import nn
 
 from models.transformer.block import DecoderBlock, DecoderOnlyBlock, EncoderBlock
-from models.transformer.embedding import RopeEmbedding, SinusoidalEmbedding
+from models.transformer.embedding import SinusoidalEmbedding, get_rope_freqs
 
 
 class ClassicalTransformer(nn.Module):
@@ -123,13 +123,14 @@ class DecoderOnlyTransformer(nn.Module):
         self.num_heads = 8
         self.ffn_size = 2048
         self.num_layers = 12
-        self.base = 10000
+        self.theta = 10000
+
+        self.freqs_cis = get_rope_freqs(
+            self.theta, seq_len, self.hidden_size // self.num_heads, device
+        )
 
         self.input_emb = nn.Embedding(
             self.vocab_size, self.hidden_size, padding_idx=pad_id
-        )
-        self.rope_emb = RopeEmbedding(
-            seq_len, self.hidden_size // self.num_heads, self.base, device
         )
         self.decoder = nn.ModuleList(
             [
@@ -160,7 +161,7 @@ class DecoderOnlyTransformer(nn.Module):
 
         causal_mask = self._make_padded_causal_mask(input_ids)
         for block in self.decoder:
-            inputs = block(inputs, causal_mask, self.rope_emb)
+            inputs = block(inputs, causal_mask, self.freqs_cis)
         logits = self.lm_head(inputs)
 
         # Assuming we have labels for computing the loss

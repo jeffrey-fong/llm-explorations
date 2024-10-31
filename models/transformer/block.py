@@ -4,7 +4,6 @@ import torch
 from torch import nn
 
 from models.transformer.attention import MultiHeadAttention
-from models.transformer.embedding import RopeEmbedding
 from models.transformer.feed_forward import FeedForwardLayer
 from models.transformer.layer_norm import LayerNorm, RMSNorm
 
@@ -73,8 +72,8 @@ class DecoderBlock(nn.Module):
 class DecoderOnlyBlock(nn.Module):
     def __init__(self, hidden_size: int, num_heads: int, ffn_size: int) -> None:
         super().__init__()
-        self.pre_norm = RMSNorm(hidden_size)
-        self.post_norm = RMSNorm(hidden_size)
+        self.attn_norm = RMSNorm(hidden_size)
+        self.ffn_norm = RMSNorm(hidden_size)
         self.attn = MultiHeadAttention(hidden_size, num_heads)
         self.ffn = FeedForwardLayer(hidden_size, ffn_size)
 
@@ -82,16 +81,16 @@ class DecoderOnlyBlock(nn.Module):
         self,
         x: torch.Tensor,
         causal_mask: torch.Tensor,
-        rope_emb: Optional[RopeEmbedding] = None,
+        freqs_cis: torch.Tensor,
     ) -> torch.Tensor:
         # Attention with causal mask
         residual = x
-        x = self.pre_norm(x)
-        x = self.attn(x, mask=causal_mask, rope_emb=rope_emb)
+        x = self.attn_norm(x)
+        x = self.attn(x, mask=causal_mask, freqs_cis=freqs_cis)
         x = residual + x
         # Feed-forward
         residual = x
-        x = self.post_norm(x)
+        x = self.ffn_norm(x)
         x = self.ffn(x)
         x = residual + x
 
