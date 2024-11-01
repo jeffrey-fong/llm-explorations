@@ -155,16 +155,15 @@ class DecoderOnlyTransformer(nn.Module):
     def _make_padded_causal_mask(self, x: torch.Tensor) -> torch.Tensor:
         """Creates a causal mask which prevents attending to padding tokens."""
         # Create padding mask (b_size, 1, seq_len, 1)
-        pad_mask = (x == self.pad_id).unsqueeze(1).unsqueeze(3).to(x.device)
+        pad_mask = (x != self.pad_id).unsqueeze(1).unsqueeze(3).to(x.device)
         # Create causal mask
-        batch_size, seq_len = x.size(0), x.size(1)
+        _, seq_len = x.size()
         # Create upper triangular matrix
-        causal_mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=1).bool()
-        # Expand mask for batch size and number of heads
-        causal_mask = causal_mask.unsqueeze(0).unsqueeze(0)
-        causal_mask = causal_mask.expand(batch_size, 1, seq_len, seq_len).to(x.device)
+        causal_mask = (
+            torch.tril(torch.ones(seq_len, seq_len)).type(torch.ByteTensor).to(x.device)
+        )
 
-        return pad_mask | causal_mask
+        return pad_mask & causal_mask
 
     def forward(
         self, input_ids: torch.Tensor, labels: Optional[torch.Tensor] = None
