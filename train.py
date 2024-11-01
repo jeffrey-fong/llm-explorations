@@ -140,6 +140,12 @@ def train(
 
                 # Log training metrics (use unscaled loss for logging)
                 train_loss += loss.item() * args.gradient_accumulation_steps
+                # Calculate accuracy (next token prediction)
+                with torch.no_grad():
+                    predictions = torch.argmax(logits, dim=-1)
+                    correct = (predictions == y).float()
+                    accuracy = correct.mean().item()
+                    writer.add_scalar("Token_accuracy/train_step", accuracy, curr_step)
                 writer.add_scalar(
                     "Loss/train_step",
                     loss.item() * args.gradient_accumulation_steps,
