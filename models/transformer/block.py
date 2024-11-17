@@ -13,20 +13,13 @@ class EncoderBlock(nn.Module):
         super().__init__()
         self.attn = MultiHeadAttention(hidden_size, num_heads)
         self.ffn = FeedForwardLayer(hidden_size, ffn_size)
-        self.attn_dropout = nn.Dropout(dropout_rate)
-        self.ffn_dropout = nn.Dropout(dropout_rate)
         self.attn_norm = LayerNorm(hidden_size)
         self.ffn_norm = LayerNorm(hidden_size)
+        self.dropout = nn.Dropout(dropout_rate)
 
     def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-        pre_x = x
-        x = self.attn(x, mask=mask)
-        x = self.attn_dropout(x)
-        x = self.attn_norm(pre_x + x)
-        pre_x = x
-        x = self.ffn(x)
-        x = self.ffn_dropout(x)
-        x = self.ffn_norm(pre_x + x)
+        x = self.attn_norm(x + self.dropout(self.attn(x, x, x, mask=mask)))
+        x = self.ffn_norm(x + self.dropout(self.ffn(x)))
 
         return x
 
@@ -39,30 +32,26 @@ class DecoderBlock(nn.Module):
         self.attn = MultiHeadAttention(hidden_size, num_heads)
         self.cross_attn = MultiHeadAttention(hidden_size, num_heads)
         self.ffn = FeedForwardLayer(hidden_size, ffn_size)
-        self.attn_dropout = nn.Dropout(dropout_rate)
-        self.cross_attn_dropout = nn.Dropout(dropout_rate)
-        self.ffn_dropout = nn.Dropout(dropout_rate)
         self.attn_norm = LayerNorm(hidden_size)
+        self.cross_attn_norm = LayerNorm(hidden_size)
         self.ffn_norm = LayerNorm(hidden_size)
+        self.dropout = nn.Dropout(dropout_rate)
 
     def forward(
-        self, x: torch.Tensor, from_enc: torch.Tensor, causal_mask: torch.Tensor
+        self,
+        x: torch.Tensor,
+        enc: torch.Tensor,
+        src_mask: torch.Tensor,
+        tgt_mask: torch.Tensor,
     ) -> torch.Tensor:
         # Masked self-attention
-        pre_x = x
-        x = self.attn(x, mask=causal_mask)
-        x = self.attn_dropout(x)
-        x = self.attn_norm(pre_x + x)
+        x = self.attn_norm(x + self.dropout(self.attn(x, x, x, mask=tgt_mask)))
         # Cross-attention
-        pre_x = x
-        x = self.cross_attn(x, enc=from_enc)
-        x = self.cross_attn_dropout(x)
-        x = self.attn_norm(pre_x + x)
+        x = self.cross_attn_norm(
+            x + self.dropout(self.cross_attn(x, enc, enc, mask=src_mask))
+        )
         # Feed-forward
-        pre_x = x
-        x = self.ffn(x)
-        x = self.ffn_dropout(x)
-        x = self.ffn_norm(pre_x + x)
+        x = self.ffn_norm(x + self.dropout(self.ffn(x)))
 
         return x
 

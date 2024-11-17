@@ -116,6 +116,8 @@ def train(
         opt, lr_lambda=lambda step: cosine_lr_schedule(step, max_steps)
     )
 
+    global_step = 0
+
     for epoch in tqdm(range(args.epochs), desc="Epochs"):
         model.train()
         progress_bar = tqdm(train_dataloader, desc=f"Training epoch {epoch + 1}")
@@ -130,29 +132,38 @@ def train(
 
             # Backward pass
             loss.backward()
+
+            global_step += 1
+
             # Only update weights and log metrics after accumulating gradients
             if (step + 1) % args.gradient_accumulation_steps == 0:
                 opt.step()
                 scheduler.step()
                 opt.zero_grad()
 
-                curr_step = (step + 1) // args.gradient_accumulation_steps
-
                 # Log training metrics (use unscaled loss for logging)
                 train_loss += loss.item() * args.gradient_accumulation_steps
+                # Calculate accuracy (next token prediction)
+                with torch.no_grad():
+                    predictions = torch.argmax(logits, dim=-1)
+                    correct = (predictions == y[:, 1:]).float()
+                    accuracy = correct.mean().item()
+                    writer.add_scalar(
+                        "Token_accuracy/train_step", accuracy, global_step
+                    )
                 writer.add_scalar(
                     "Loss/train_step",
                     loss.item() * args.gradient_accumulation_steps,
-                    curr_step,
+                    global_step,
                 )
                 writer.add_scalar(
-                    "Learning_rate", scheduler.get_last_lr()[0], curr_step
+                    "Learning_rate", scheduler.get_last_lr()[0], global_step
                 )
 
                 # Run validation every args.eval_every steps
-                if curr_step % args.eval_every == 0:
+                if global_step % args.eval_every == 0:
                     avg_val_loss = validate(model, tokenizer, val_dataloader)
-                    writer.add_scalar("Loss/validation_step", avg_val_loss, curr_step)
+                    writer.add_scalar("Loss/validation_step", avg_val_loss, global_step)
                     model.train()  # Switch back to training mode
 
         # Log average training loss for epoch
@@ -162,8 +173,8 @@ def train(
 
         # Validation
 
-        writer.add_scalar("Loss/validation_epoch", avg_val_loss, epoch)
-        print(f"Validation loss: {avg_val_loss}")
+        # writer.add_scalar("Loss/validation_epoch", avg_val_loss, epoch)
+        # print(f"Validation loss: {avg_val_loss}")
 
     writer.close()
 
@@ -197,7 +208,7 @@ def parse_args():
     )
 
     # Training Arguments
-    parser.add_argument("--lr", type=float, default=0.0001, help="Learning rate")
+    parser.add_argument("--lr", type=float, default=0.0002, help="Learning rate")
     parser.add_argument("--warmup-steps", type=int, default=100, help="Warmup steps")
     parser.add_argument("--train-batch-size", type=int, default=32, help="Batch size")
     parser.add_argument(

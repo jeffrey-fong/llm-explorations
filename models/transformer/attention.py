@@ -42,13 +42,12 @@ class MultiHeadAttention(nn.Module):
 
     def forward(
         self,
-        x: torch.Tensor,
-        enc: Optional[torch.Tensor] = None,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
         mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        q = self.q_proj(x) if enc is None else self.q_proj(enc)
-        k = self.k_proj(x) if enc is None else self.k_proj(enc)
-        v = self.v_proj(x)
+        q, k, v = self.q_proj(q), self.k_proj(k), self.v_proj(v)
         # Reshape q, k, v to match the number of heads
         # (b_size, n_heads, seq_len, head_dim)
         q = q.view(q.size(0), q.size(1), self.num_heads, self.head_dim).transpose(1, 2)

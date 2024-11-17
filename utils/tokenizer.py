@@ -5,7 +5,7 @@ import tiktoken
 
 class Tokenizer:
     def __init__(self) -> None:
-        self.enc = tiktoken.get_encoding("o200k_base")  # Use o1/gpt-4o encoding
+        self.enc = tiktoken.get_encoding("cl100k_base")  # Use o1/gpt-4o encoding
         self.vocab_size = self.enc.n_vocab
         self.pad_token_id = self.enc.encode("<|endoftext|>", allowed_special="all")[0]
 

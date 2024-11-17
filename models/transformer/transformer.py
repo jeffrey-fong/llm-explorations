@@ -55,24 +55,29 @@ class ClassicalTransformer(nn.Module):
         return pad_mask | causal_mask
 
     def forward(
-        self, input_ids: torch.Tensor, labels: Optional[torch.Tensor] = None
+        self, input_ids: torch.Tensor, target_ids: torch.Tensor
     ) -> torch.Tensor:
         inputs = self.input_emb(input_ids)
         encoder_mask = self._make_encoder_mask(input_ids)
         for block in self.encoder:
             inputs = block(inputs, encoder_mask)
 
-        targets = self.target_emb(labels)
-        decoder_mask = self._make_decoder_mask(labels, targets)
+        # Shift right to get the labels
+        labels = target_ids[:, 1:]
+        target_ids = target_ids[:, :-1]
+
+        targets = self.target_emb(target_ids)
+        decoder_mask = self._make_decoder_mask(target_ids, targets)
         for block in self.decoder:
-            targets = block(targets, inputs, decoder_mask)
+            targets = block(targets, inputs, encoder_mask, decoder_mask)
         logits = self.lm_head(targets)
 
         # Assuming we have labels for computing the loss
-        loss = None
-        if labels is not None:
-            loss_fct = nn.CrossEntropyLoss()
-            loss = loss_fct(logits.view(-1, self.vocab_size), labels.view(-1))
+        loss_fct = nn.CrossEntropyLoss(ignore_index=self.pad_id)
+        loss = loss_fct(
+            logits.contiguous().view(-1, self.vocab_size),
+            labels.contiguous().view(-1),
+        )
 
         return logits, loss
 
