@@ -42,14 +42,14 @@ The same model configuration as the original [Attention is All You Need](https:/
 <div style="display: flex; flex-wrap: wrap; justify-content: space-between;">
     <div style="width: 48%;">
         <h4>Training Loss</h4>
-        <img src="images/train_loss_classical_transformer.png" width="100%" alt="Training Loss">
+        <img src="images/train_loss_classical_transformer.png" width="48%" alt="Training Loss">
     </div>
     <div style="width: 48%;">
         <h4>Validation Loss</h4>
-        <img src="images/val_loss_classical_transformer.png" width="100%" alt="Validation Loss">
+        <img src="images/val_loss_classical_transformer.png" width="48%" alt="Validation Loss">
     </div>
     <div style="width: 48%;">
         <h4>Training Token Accuracy</h4>
-        <img src="images/train_token_acc_classical_transformer.png" width="100%" alt="Training Token Accuracy">
+        <img src="images/train_token_acc_classical_transformer.png" width="48%" alt="Training Token Accuracy">
     </div>
 </div>
