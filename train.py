@@ -62,8 +62,6 @@ class GutenbergPoetryDataset(Dataset):
 
 
 def cosine_lr_schedule(step: int, max_steps: int) -> float:
-    min_lr = min(args.lr / 5, 1e-4)
-
     # Warmup phase
     if step < args.warmup_steps:
         return (float(step) / float(max(1, args.warmup_steps))) * args.lr
@@ -72,7 +70,9 @@ def cosine_lr_schedule(step: int, max_steps: int) -> float:
     progress = float(step - args.warmup_steps) / float(
         max(1, max_steps - args.warmup_steps)
     )
-    return min_lr + 0.5 * (args.lr - min_lr) * (1.0 + math.cos(math.pi * progress))
+    return args.min_lr + 0.5 * (args.lr - args.min_lr) * (
+        1.0 + math.cos(math.pi * progress)
+    )
 
 
 def validate(
@@ -83,7 +83,8 @@ def validate(
     model.eval()
     val_loss = 0.0
     with torch.no_grad():
-        for X, y in val_dataloader:
+        progress_bar = tqdm(val_dataloader, desc="Validating")
+        for X, y in progress_bar:
             X, y = X.to(args.device), y.to(args.device)
             _, loss = model(X, y)
             val_loss += loss
@@ -116,6 +117,8 @@ def train(
         opt, lr_lambda=lambda step: cosine_lr_schedule(step, max_steps)
     )
 
+    # Add max gradient norm for clipping
+    max_grad_norm = 1.0
     global_step = 0
 
     for epoch in tqdm(range(args.epochs), desc="Epochs"):
@@ -137,6 +140,9 @@ def train(
 
             # Only update weights and log metrics after accumulating gradients
             if (step + 1) % args.gradient_accumulation_steps == 0:
+                # Add gradient clipping before optimizer step
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+
                 opt.step()
                 scheduler.step()
                 opt.zero_grad()
@@ -171,11 +177,6 @@ def train(
         avg_train_loss = train_loss / num_training_steps
         writer.add_scalar("Loss/train_epoch", avg_train_loss, epoch)
 
-        # Validation
-
-        # writer.add_scalar("Loss/validation_epoch", avg_val_loss, epoch)
-        # print(f"Validation loss: {avg_val_loss}")
-
     writer.close()
 
 
@@ -201,7 +202,7 @@ def parse_args():
         help="Model type (currently only transformer is supported)",
     )
     parser.add_argument(
-        "--seq-len", type=int, default=256, help="Max sequence length of the model"
+        "--seq-len", type=int, default=128, help="Max sequence length of the model"
     )
     parser.add_argument(
         "--device", type=str, default="cpu", help="Device to use for training"
@@ -209,12 +210,15 @@ def parse_args():
 
     # Training Arguments
     parser.add_argument("--lr", type=float, default=0.0002, help="Learning rate")
-    parser.add_argument("--warmup-steps", type=int, default=100, help="Warmup steps")
-    parser.add_argument("--train-batch-size", type=int, default=32, help="Batch size")
+    parser.add_argument(
+        "--min-lr", type=float, default=0.00015, help="Minimum learning rate"
+    )
+    parser.add_argument("--warmup-steps", type=int, default=10, help="Warmup steps")
+    parser.add_argument("--train-batch-size", type=int, default=128, help="Batch size")
     parser.add_argument(
         "--gradient-accumulation-steps",
         type=int,
-        default=2,
+        default=1,
         help="Gradient accumulation steps",
     )
     parser.add_argument("--epochs", type=int, default=1, help="Number of epochs")
@@ -222,7 +226,7 @@ def parse_args():
         "--eval-every", type=int, default=100, help="Validation every n steps"
     )
     parser.add_argument(
-        "--val-batch-size", type=int, default=32, help="Validation batch size"
+        "--val-batch-size", type=int, default=48, help="Validation batch size"
     )
     return parser.parse_args()
 

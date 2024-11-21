@@ -21,15 +21,35 @@ class ClassicalTransformer(nn.Module):
         super().__init__()
         self.vocab_size = vocab_size
         self.pad_id = pad_id
-        self.input_emb = SinusoidalEmbedding(seq_len, 512, self.vocab_size, device)
-        self.target_emb = SinusoidalEmbedding(seq_len, 512, self.vocab_size, device)
+
+        self.hidden_size = 512
+        self.ffn_size = 2048
+        self.num_heads = 8
+        self.dropout_rate = 0.1
+
+        self.input_emb = SinusoidalEmbedding(
+            seq_len, self.hidden_size, self.vocab_size, device
+        )
+        self.target_emb = SinusoidalEmbedding(
+            seq_len, self.hidden_size, self.vocab_size, device
+        )
         self.encoder = nn.ModuleList(
-            [EncoderBlock(512, 8, 2048, 0.1) for _ in range(6)]
+            [
+                EncoderBlock(
+                    self.hidden_size, self.num_heads, self.ffn_size, self.dropout_rate
+                )
+                for _ in range(6)
+            ]
         )
         self.decoder = nn.ModuleList(
-            [DecoderBlock(512, 8, 2048, 0.1) for _ in range(6)]
+            [
+                DecoderBlock(
+                    self.hidden_size, self.num_heads, self.ffn_size, self.dropout_rate
+                )
+                for _ in range(6)
+            ]
         )
-        self.lm_head = nn.Linear(512, self.vocab_size)
+        self.lm_head = nn.Linear(self.hidden_size, self.vocab_size)
 
     def _make_encoder_mask(self, x: torch.Tensor) -> torch.Tensor:
         """Creates encoder mask which prevents attending to padding tokens."""

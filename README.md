@@ -20,15 +20,16 @@ python train.py -h
 
 ## Experiments
 
-- batch_size = 64
-- seq_len = 256
+- batch_size = 128
+- seq_len = 128
 - num_epochs = 1
 - optimizer = AdamW
 - weight_decay = 0.01
 - warmup_steps = 100
-- init_lr = 1e-4
-- min_lr = 2e-5
+- init_lr = 2e-4
+- min_lr = 1.5e-4
 - lr_schedule = cosine decay to min_lr with warmup
+- eval_every = 100
 
 ![Learning Rate Schedule](images/lr.png)
 
@@ -38,7 +39,17 @@ python train.py -h
 
 The same model configuration as the original [Attention is All You Need](https://arxiv.org/abs/1706.03762) paper is used.
 
-<div style="display: flex; justify-content: space-between;">
-    <img src="images/train_loss_classical_transformer.png" width="48%" alt="Training Loss">
-    <img src="images/val_loss_classical_transformer.png" width="48%" alt="Validation Loss">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between;">
+    <div style="width: 48%;">
+        <h4>Training Loss</h4>
+        <img src="images/train_loss_classical_transformer.png" width="100%" alt="Training Loss">
+    </div>
+    <div style="width: 48%;">
+        <h4>Validation Loss</h4>
+        <img src="images/val_loss_classical_transformer.png" width="100%" alt="Validation Loss">
+    </div>
+    <div style="width: 48%;">
+        <h4>Training Token Accuracy</h4>
+        <img src="images/train_token_acc_classical_transformer.png" width="100%" alt="Training Token Accuracy">
+    </div>
 </div>
