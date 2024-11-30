@@ -1,4 +1,5 @@
 tensorboard
 tqdm
-tiktoken
 torch-tb-profiler
+matplotlib
+numpy

@@ -1,24 +1,23 @@
 from typing import List, Union
 
-import tiktoken
-
 
 class Tokenizer:
-    def __init__(self) -> None:
-        self.enc = tiktoken.get_encoding("cl100k_base")  # Use o1/gpt-4o encoding
-        self.vocab_size = self.enc.n_vocab
-        self.pad_token_id = self.enc.encode("<|endoftext|>", allowed_special="all")[0]
+    def __init__(self, raw_str_data: str) -> None:
+        self.vocab = sorted(list(set(raw_str_data)))
+        self.vocab_size = len(self.vocab)
+        self.str_to_id = {char: i for i, char in enumerate(self.vocab)}
+        self.id_to_str = {i: char for i, char in enumerate(self.vocab)}
 
     def encode(self, text: Union[str, List[str]]) -> Union[List[List[str]], List[str]]:
         if isinstance(text, str):
-            return self.enc.encode(text)
+            return [self.str_to_id[ch] for ch in text]
         else:
-            return self.enc.encode_batch(text)
+            return [self.encode(s) for s in text]
 
     def decode(
         self, input_ids: Union[List[int], List[List[int]]]
     ) -> Union[str, List[str]]:
         if isinstance(input_ids[0], int):
-            return self.enc.decode(input_ids)
+            return "".join([self.id_to_str[id] for id in input_ids])
         else:
-            return self.enc.decode_batch(input_ids)
+            return [self.decode(ids) for ids in input_ids]
