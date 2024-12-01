@@ -11,7 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from config import TransformerConfig
-from models.transformer.transformer import Transformer
+from models.transformer.transformer import DifferentialTransformer, Transformer
 from utils.tokenizer import Tokenizer
 
 
@@ -60,7 +60,7 @@ def cosine_lr_schedule(step: int, max_steps: int) -> float:
 
 
 def validate(
-    model: Union[Transformer],
+    model: Union[Transformer, DifferentialTransformer],
     tokenizer: Tokenizer,
     val_dataloader: DataLoader,
 ):
@@ -94,12 +94,21 @@ def plot_graphs(train_losses, val_losses, steps):
     plt.legend()
     plt.grid(True)
 
+    # Filter data from step 1000 onwards
+    start_idx = next(i for i, step in enumerate(steps) if step >= 1000)
+    filtered_steps = steps[start_idx:]
+    filtered_train_losses = train_losses[start_idx:]
+    val_steps = [args.eval_every * (i + 1) for i in range(len(val_losses))]
+    val_start_idx = next(i for i, step in enumerate(val_steps) if step >= 1000)
+    filtered_val_steps = val_steps[val_start_idx:]
+    filtered_val_losses = val_losses[val_start_idx:]
+
     # Plot perplexity
     plt.subplot(1, 2, 2)
-    train_ppl = [torch.exp(torch.tensor(loss)).item() for loss in train_losses]
-    val_ppl = [torch.exp(torch.tensor(loss)).item() for loss in val_losses]
-    plt.plot(steps, train_ppl, label="Train Perplexity", alpha=0.8)
-    plt.plot(val_steps, val_ppl, label="Validation Perplexity", alpha=0.8)
+    train_ppl = [torch.exp(torch.tensor(loss)).item() for loss in filtered_train_losses]
+    val_ppl = [torch.exp(torch.tensor(loss)).item() for loss in filtered_val_losses]
+    plt.plot(filtered_steps, train_ppl, label="Train Perplexity", alpha=0.8)
+    plt.plot(filtered_val_steps, val_ppl, label="Validation Perplexity", alpha=0.8)
     plt.xlabel("Steps")
     plt.ylabel("Perplexity")
     plt.title("Training and Validation Perplexity")
@@ -152,6 +161,18 @@ def train():
             base=10000.0,
         )
         model = Transformer(config=config).to(args.device)
+    elif args.model_type == "diff-transformer":
+        config = TransformerConfig(
+            seq_len=args.seq_len,
+            vocab_size=tokenizer.vocab_size,
+            device=args.device,
+            num_layers=4,
+            hidden_size=128,
+            ffn_size=128 * 4 * 2 // 3,
+            num_heads=4,
+            base=10000.0,
+        )
+        model = DifferentialTransformer(config=config).to(args.device)
     else:
         raise ValueError(f"Model type {args.model_type} not supported")
 
@@ -259,8 +280,8 @@ def parse_args():
         "--model-type",
         type=str,
         default="transformer",
-        choices=["transformer"],
-        help="Model type (currently only transformer is supported)",
+        choices=["transformer", "diff-transformer"],
+        help="Model type",
     )
     parser.add_argument(
         "--seq-len", type=int, default=32, help="Max sequence length of the model"

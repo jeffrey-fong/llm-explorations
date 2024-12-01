@@ -63,3 +63,34 @@ Total number of parameters: 1,112,781
 </div>
 
 The validation loss converges to about 1.02. To obtain a more meaningful understanding of what this value means, we can calculate the perplexity. The perplexity is also equivalent to how many tokens the model is choosing between randomly at each step. From the perplexity plot, we can see that validation loss of 1.02 corresponds to perplexity of about 2.75. This means that on average, the model is choosing between 2.75 tokens at each step, which is much better than random guessing (perplexity of 65 for a 65-token vocabulary). This seems to indicate that the model has learnt and generalized reasonably well to the validation set without overfitting to the training data.
+
+
+### Differential Transformer
+
+[Differential Transformer](https://arxiv.org/abs/2410.05258) is a variant of the Transformer model that uses differential attention (the difference between two softmax attention maps) to amplify attention to the relevant context and cancel noise (reduce the amount of attention to all the other irrelevant tokens). This model architecture is similar to Llama with the main difference being the use of Multi-Head Differential Attention instead of the standard Multi-Head Attention.
+
+#### Model Architecture
+
+| Parameter | Value |
+|-----------|--------|
+| num_layers | 4 |
+| num_heads | 4 (Half of standard Transformer) |
+| d_model | 128 |
+| d_feedforward | 341 (2/3 x 4 x d_model) |
+| dropout | None |
+| positional_embedding | RoPE |
+| RoPE theta base | 10000.0 |
+| Normalization | pre-RMSNorm |
+| Activation Function | SwiGLU |
+
+Total number of parameters: 1,113,421
+
+#### Results
+
+<div style="display: flex; flex-wrap: wrap; justify-content: center;">
+    <div style="width: 100%;">
+        <img src="images/differential_transformer_results.png" width="100%">
+    </div>
+</div>
+
+Validation loss and perplexity converges to 1.18 and 3.25 respectively. On average, the model is choosing between 3.25 tokens randomly at each steo. This is comparable to the standard Transformer model.
